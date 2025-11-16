@@ -3761,9 +3761,9 @@ Node;AmplifyShaderEditor.RangedFloatNode, AmplifyShaderEditor, Version=0.0.0.0, 
 Node;AmplifyShaderEditor.TextureCoordinatesNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;15;-896,-144;Inherit;False;0;-1;2;3;2;SAMPLER2D;;False;0;FLOAT2;1,1;False;1;FLOAT2;-0.15,0;False;5;FLOAT2;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4
 Node;AmplifyShaderEditor.SimpleMultiplyOpNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;72;-688,736;Inherit;True;2;2;0;FLOAT;0;False;1;FLOAT;0;False;1;FLOAT;0
 Node;AmplifyShaderEditor.LerpOp, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;14;-608,-16;Inherit;False;3;0;FLOAT2;0,0;False;1;FLOAT2;0,0;False;2;FLOAT;0;False;1;FLOAT2;0
-Node;AmplifyShaderEditor.ToggleSwitchNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;45;-368,320;Inherit;False;Property;_ParticleSystem;Particle System;3;0;Create;True;0;0;0;False;0;False;0;True;Create;2;0;FLOAT;0;False;1;FLOAT;0;False;1;FLOAT;0
 Node;AmplifyShaderEditor.RangedFloatNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;47;-752,240;Inherit;False;Property;_RayHeight;Ray Height;5;0;Create;True;0;0;0;False;0;False;1;1;0;0;0;1;FLOAT;0
 Node;AmplifyShaderEditor.SimpleContrastOpNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;74;-432,736;Inherit;True;2;1;COLOR;0,0,0,0;False;0;FLOAT;7.07;False;1;COLOR;0
+Node;AmplifyShaderEditor.ToggleSwitchNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;45;-368,320;Inherit;False;Property;_ParticleSystem;Particle System;3;0;Create;True;0;0;0;False;0;False;0;True;Create;2;0;FLOAT;0;False;1;FLOAT;0;False;1;FLOAT;0
 Node;AmplifyShaderEditor.VertexColorNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;38;-176,160;Inherit;False;0;5;COLOR;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4
 Node;AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;9;-416,-16;Inherit;True;Rectangle;-1;;1;6b23e0c975270fb4084c354b2c83366a;0;3;1;FLOAT2;0,0;False;2;FLOAT;0.2;False;3;FLOAT;1;False;1;FLOAT;0
 Node;AmplifyShaderEditor.PowerNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;75;-160,736;Inherit;True;False;2;0;COLOR;0,0,0,0;False;1;FLOAT;33.54;False;1;COLOR;0
@@ -3804,9 +3804,9 @@ WireConnection;72;1;71;0
 WireConnection;14;0;15;0
 WireConnection;14;1;17;0
 WireConnection;14;2;16;0
+WireConnection;74;1;72;0
 WireConnection;45;0;46;0
 WireConnection;45;1;41;0
-WireConnection;74;1;72;0
 WireConnection;9;1;14;0
 WireConnection;9;2;45;0
 WireConnection;9;3;47;0
@@ -3821,4 +3821,4 @@ WireConnection;78;1;77;0
 WireConnection;1;0;11;0
 WireConnection;1;2;78;0
 ASEEND*/
-//CHKSM=C60460BF61D311B84F34E728503240D03E2DC86D
+//CHKSM=F72755704CD409C475204D7B869E3385B1DC47CE
