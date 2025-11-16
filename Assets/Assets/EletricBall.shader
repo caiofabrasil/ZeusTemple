@@ -11,6 +11,10 @@ Shader "EletricBall"
 		_Power( "Power", Float ) = 5
 		_Float3( "Float 3", Float ) = 0
 		_Noise( "Noise", 2D ) = "white" {}
+		_DissolveNoise( "Dissolve Noise", 2D ) = "white" {}
+		_DissolveTilling( "Dissolve Tilling", Vector ) = ( 0, 0, 0, 0 )
+		_DissolveValue( "Dissolve Value", Range( 0, 1 ) ) = 0
+		_DissolveFether( "Dissolve Fether", Range( 0, 0.4 ) ) = 0
 
 		[HideInInspector] _RenderQueueType("Render Queue Type", Float) = 5
 		[HideInInspector][ToggleUI] _AddPrecomputedVelocity("Add Precomputed Velocity", Float) = 1
@@ -268,10 +272,14 @@ Shader "EletricBall"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color2;
 			float4 _Color;
+			float4 _DissolveNoise_ST;
+			float2 _DissolveTilling;
 			float _Float3;
 			float _Bias;
 			float _Scale;
 			float _Power;
+			float _DissolveValue;
+			float _DissolveFether;
 			float4 _EmissionColor;
 			float _RenderQueueType;
 			#ifdef _ADD_PRECOMPUTED_VELOCITY
@@ -329,6 +337,7 @@ Shader "EletricBall"
 			CBUFFER_END
 
 			sampler2D _Noise;
+			sampler2D _DissolveNoise;
 
 
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Material.hlsl"
@@ -341,6 +350,7 @@ Shader "EletricBall"
 			#define ASE_NEEDS_VERT_NORMAL
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_FRAG_RELATIVE_WORLD_POS
 
 
 			struct AttributesMesh
@@ -357,11 +367,24 @@ Shader "EletricBall"
 				float3 positionRWS : TEXCOORD0;
 				float4 ase_texcoord1 : TEXCOORD1;
 				float4 ase_texcoord2 : TEXCOORD2;
+				float4 ase_texcoord3 : TEXCOORD3;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
 
+			inline float4 TriplanarSampling83( sampler2D topTexMap, const float4 topST, float3 worldPos, float3 worldNormal, float falloff, float2 tiling, float3 normalScale, float3 index )
+			{
+				float3 projNormal = ( pow( abs( worldNormal ), falloff ) );
+				projNormal /= ( projNormal.x + projNormal.y + projNormal.z ) + 0.00001;
+				float3 nsign = sign( worldNormal );
+				half4 xNorm; half4 yNorm; half4 zNorm;
+				xNorm = tex2D( topTexMap, tiling * worldPos.zy * float2(  nsign.x, 1.0 ) * topST.xy + topST.zw );
+				yNorm = tex2D( topTexMap, tiling * worldPos.xz * float2(  nsign.y, 1.0 ) * topST.xy + topST.zw );
+				zNorm = tex2D( topTexMap, tiling * worldPos.xy * float2( -nsign.z, 1.0 ) * topST.xy + topST.zw );
+				return xNorm * projNormal.x + yNorm * projNormal.y + zNorm * projNormal.z;
+			}
 			
+
 			struct SurfaceDescription
 			{
 				float3 Color;
@@ -461,14 +484,17 @@ Shader "EletricBall"
 				UNITY_TRANSFER_INSTANCE_ID(inputMesh, o);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO( o );
 
+				float3 normalizeWorldNormal = normalize( TransformObjectToWorldNormal( inputMesh.normalOS ) );
+				o.ase_texcoord1.xyz = normalizeWorldNormal;
 				float3 ase_normalWS = TransformObjectToWorldNormal( inputMesh.normalOS );
-				o.ase_texcoord1.xyz = ase_normalWS;
+				o.ase_texcoord2.xyz = ase_normalWS;
 				
-				o.ase_texcoord2.xy = inputMesh.ase_texcoord.xy;
+				o.ase_texcoord3.xy = inputMesh.ase_texcoord.xy;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				o.ase_texcoord1.w = 0;
-				o.ase_texcoord2.zw = 0;
+				o.ase_texcoord2.w = 0;
+				o.ase_texcoord3.zw = 0;
 				#ifdef ASE_ABSOLUTE_VERTEX_POS
 				float3 defaultVertexValue = inputMesh.positionOS.xyz;
 				#else
@@ -609,32 +635,37 @@ Shader "EletricBall"
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, packedInput.positionCS.z ) * packedInput.positionCS.w;
 				float4 ScreenPos = ComputeScreenPos( ClipPos, _ProjectionParams.x );
 
-				float3 ase_normalWS = packedInput.ase_texcoord1.xyz;
-				float fresnelNdotV30 = dot( ase_normalWS, V );
+				float3 normalizeWorldNormal = packedInput.ase_texcoord1.xyz;
+				float fresnelNdotV30 = dot( normalizeWorldNormal, V );
 				float fresnelNode30 = ( 15.0 + -20.0 * pow( max( 1.0 - fresnelNdotV30 , 0.0001 ), 0.2 ) );
+				float3 ase_normalWS = packedInput.ase_texcoord2.xyz;
 				float fresnelNdotV9 = dot( ase_normalWS, V );
 				float fresnelNode9 = ( _Bias + _Scale * pow( 1.0 - fresnelNdotV9, _Power ) );
 				float4 lerpResult10 = lerp( _Color , _Color2 , fresnelNode9);
 				float mulTime27 = _TimeParameters.x * -0.02;
 				float2 appendResult42 = (float2(mulTime27 , ( 1.0 - mulTime27 )));
-				float2 texCoord40 = packedInput.ase_texcoord2.xy * float2( 1,1 ) + appendResult42;
+				float2 texCoord40 = packedInput.ase_texcoord3.xy * float2( 1,1 ) + appendResult42;
 				float mulTime56 = _TimeParameters.x * 0.05;
 				float2 appendResult54 = (float2(( 1.0 - mulTime56 ) , mulTime56));
-				float2 texCoord53 = packedInput.ase_texcoord2.xy * float2( 1,1 ) + appendResult54;
+				float2 texCoord53 = packedInput.ase_texcoord3.xy * float2( 1,1 ) + appendResult54;
 				float blendOpSrc44 = ( 0.5 * tex2D( _Noise, texCoord40 ).r );
 				float blendOpDest44 = ( 2.0 * tex2D( _Noise, texCoord53 ).b );
 				float mulTime62 = _TimeParameters.x * -0.02;
 				float2 appendResult60 = (float2(mulTime62 , mulTime62));
-				float2 texCoord59 = packedInput.ase_texcoord2.xy * float2( 1,1 ) + appendResult60;
+				float2 texCoord59 = packedInput.ase_texcoord3.xy * float2( 1,1 ) + appendResult60;
 				float blendOpSrc58 = ( saturate( max( blendOpSrc44, blendOpDest44 ) ));
 				float blendOpDest58 = ( 0.35 * tex2D( _Noise, texCoord59 ).g );
+				
+				float3 ase_positionWS = GetAbsolutePositionWS( PositionRWS );
+				float4 triplanar83 = TriplanarSampling83( _DissolveNoise, _DissolveNoise_ST, ase_positionWS, ase_normalWS, 1.0, _DissolveTilling, 1.0, 0 );
+				float smoothstepResult84 = smoothstep( ( _DissolveValue - _DissolveFether ) , _DissolveValue , triplanar83.w);
 				
 
 				SurfaceDescription surfaceDescription = (SurfaceDescription)0;
 
 				surfaceDescription.Color = saturate( ( ( ( fresnelNode30 * _Color2 ) * _Float3 ) + ( lerpResult10 + ( _Color2 * ( saturate( ( 1.0 - ( 1.0 - blendOpSrc58 ) * ( 1.0 - blendOpDest58 ) ) )) ) ) ) ).rgb;
 				surfaceDescription.Emission = 0;
-				surfaceDescription.Alpha = 1;
+				surfaceDescription.Alpha = smoothstepResult84;
 
 				#ifdef _ALPHATEST_ON
 				surfaceDescription.AlphaClipThreshold = _AlphaCutoff;
@@ -774,7 +805,10 @@ Shader "EletricBall"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/TextureStack.hlsl"
             #include "Packages/com.unity.shadergraph/ShaderGraphLibrary/Functions.hlsl"
 
-			
+			#define ASE_NEEDS_RELATIVE_WORLD_POS
+			#define ASE_NEEDS_FRAG_RELATIVE_WORLD_POS
+			#define ASE_NEEDS_VERT_NORMAL
+
 
 			struct AttributesMesh
 			{
@@ -788,7 +822,7 @@ Shader "EletricBall"
 			{
 				float4 positionCS : SV_Position;
 				float3 positionRWS : TEXCOORD0;
-				
+				float4 ase_texcoord1 : TEXCOORD1;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -796,10 +830,14 @@ Shader "EletricBall"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color2;
 			float4 _Color;
+			float4 _DissolveNoise_ST;
+			float2 _DissolveTilling;
 			float _Float3;
 			float _Bias;
 			float _Scale;
 			float _Power;
+			float _DissolveValue;
+			float _DissolveFether;
 			float4 _EmissionColor;
 			float _RenderQueueType;
 			#ifdef _ADD_PRECOMPUTED_VELOCITY
@@ -856,7 +894,8 @@ Shader "EletricBall"
 			#endif
 			CBUFFER_END
 
-			
+			sampler2D _DissolveNoise;
+
 
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Debug/DebugDisplay.hlsl"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Material.hlsl"
@@ -865,7 +904,19 @@ Shader "EletricBall"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/MaterialUtilities.hlsl"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderGraphFunctions.hlsl"
 
+			inline float4 TriplanarSampling83( sampler2D topTexMap, const float4 topST, float3 worldPos, float3 worldNormal, float falloff, float2 tiling, float3 normalScale, float3 index )
+			{
+				float3 projNormal = ( pow( abs( worldNormal ), falloff ) );
+				projNormal /= ( projNormal.x + projNormal.y + projNormal.z ) + 0.00001;
+				float3 nsign = sign( worldNormal );
+				half4 xNorm; half4 yNorm; half4 zNorm;
+				xNorm = tex2D( topTexMap, tiling * worldPos.zy * float2(  nsign.x, 1.0 ) * topST.xy + topST.zw );
+				yNorm = tex2D( topTexMap, tiling * worldPos.xz * float2(  nsign.y, 1.0 ) * topST.xy + topST.zw );
+				zNorm = tex2D( topTexMap, tiling * worldPos.xy * float2( -nsign.z, 1.0 ) * topST.xy + topST.zw );
+				return xNorm * projNormal.x + yNorm * projNormal.y + zNorm * projNormal.z;
+			}
 			
+
 			struct SurfaceDescription
 			{
 				float Alpha;
@@ -924,7 +975,12 @@ Shader "EletricBall"
 				UNITY_TRANSFER_INSTANCE_ID(inputMesh, o);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO( o );
 
+				float3 ase_normalWS = TransformObjectToWorldNormal( inputMesh.normalOS );
+				o.ase_texcoord1.xyz = ase_normalWS;
 				
+				
+				//setting value to unused interpolator channels and avoid initialization warnings
+				o.ase_texcoord1.w = 0;
 				#ifdef ASE_ABSOLUTE_VERTEX_POS
 				float3 defaultVertexValue = inputMesh.positionOS.xyz;
 				#else
@@ -1063,11 +1119,15 @@ Shader "EletricBall"
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, packedInput.positionCS.z ) * packedInput.positionCS.w;
 				float4 ScreenPos = ComputeScreenPos( ClipPos, _ProjectionParams.x );
 
+				float3 ase_positionWS = GetAbsolutePositionWS( PositionRWS );
+				float3 ase_normalWS = packedInput.ase_texcoord1.xyz;
+				float4 triplanar83 = TriplanarSampling83( _DissolveNoise, _DissolveNoise_ST, ase_positionWS, ase_normalWS, 1.0, _DissolveTilling, 1.0, 0 );
+				float smoothstepResult84 = smoothstep( ( _DissolveValue - _DissolveFether ) , _DissolveValue , triplanar83.w);
 				
 
 				SurfaceDescription surfaceDescription = (SurfaceDescription)0;
 
-				surfaceDescription.Alpha = 1;
+				surfaceDescription.Alpha = smoothstepResult84;
 
 				#ifdef _ALPHATEST_ON
 				surfaceDescription.AlphaClipThreshold = _AlphaCutoff;
@@ -1164,10 +1224,14 @@ Shader "EletricBall"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color2;
 			float4 _Color;
+			float4 _DissolveNoise_ST;
+			float2 _DissolveTilling;
 			float _Float3;
 			float _Bias;
 			float _Scale;
 			float _Power;
+			float _DissolveValue;
+			float _DissolveFether;
 			float4 _EmissionColor;
 			float _RenderQueueType;
 			#ifdef _ADD_PRECOMPUTED_VELOCITY
@@ -1225,6 +1289,7 @@ Shader "EletricBall"
 			CBUFFER_END
 
 			sampler2D _Noise;
+			sampler2D _DissolveNoise;
 
 
             #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Debug/DebugDisplay.hlsl"
@@ -1261,11 +1326,24 @@ Shader "EletricBall"
 				float4 ase_texcoord2 : TEXCOORD2;
 				float4 ase_texcoord3 : TEXCOORD3;
 				float4 ase_texcoord4 : TEXCOORD4;
+				float4 ase_texcoord5 : TEXCOORD5;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 			};
 
 
+			inline float4 TriplanarSampling83( sampler2D topTexMap, const float4 topST, float3 worldPos, float3 worldNormal, float falloff, float2 tiling, float3 normalScale, float3 index )
+			{
+				float3 projNormal = ( pow( abs( worldNormal ), falloff ) );
+				projNormal /= ( projNormal.x + projNormal.y + projNormal.z ) + 0.00001;
+				float3 nsign = sign( worldNormal );
+				half4 xNorm; half4 yNorm; half4 zNorm;
+				xNorm = tex2D( topTexMap, tiling * worldPos.zy * float2(  nsign.x, 1.0 ) * topST.xy + topST.zw );
+				yNorm = tex2D( topTexMap, tiling * worldPos.xz * float2(  nsign.y, 1.0 ) * topST.xy + topST.zw );
+				zNorm = tex2D( topTexMap, tiling * worldPos.xy * float2( -nsign.z, 1.0 ) * topST.xy + topST.zw );
+				return xNorm * projNormal.x + yNorm * projNormal.y + zNorm * projNormal.z;
+			}
 			
+
 			struct SurfaceDescription
 			{
 				float3 Color;
@@ -1331,15 +1409,18 @@ Shader "EletricBall"
 
 				float3 ase_positionWS = GetAbsolutePositionWS( TransformObjectToWorld( ( inputMesh.positionOS ).xyz ) );
 				o.ase_texcoord2.xyz = ase_positionWS;
+				float3 normalizeWorldNormal = normalize( TransformObjectToWorldNormal( inputMesh.normalOS ) );
+				o.ase_texcoord3.xyz = normalizeWorldNormal;
 				float3 ase_normalWS = TransformObjectToWorldNormal( inputMesh.normalOS );
-				o.ase_texcoord3.xyz = ase_normalWS;
+				o.ase_texcoord4.xyz = ase_normalWS;
 				
-				o.ase_texcoord4.xy = inputMesh.uv0.xy;
+				o.ase_texcoord5.xy = inputMesh.uv0.xy;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				o.ase_texcoord2.w = 0;
 				o.ase_texcoord3.w = 0;
-				o.ase_texcoord4.zw = 0;
+				o.ase_texcoord4.w = 0;
+				o.ase_texcoord5.zw = 0;
 				#ifdef ASE_ABSOLUTE_VERTEX_POS
 				float3 defaultVertexValue = inputMesh.positionOS.xyz;
 				#else
@@ -1490,32 +1571,36 @@ Shader "EletricBall"
 				float3 ase_positionWS = packedInput.ase_texcoord2.xyz;
 				float3 ase_viewVectorWS = ( _WorldSpaceCameraPos.xyz - ase_positionWS );
 				float3 ase_viewDirWS = normalize( ase_viewVectorWS );
-				float3 ase_normalWS = packedInput.ase_texcoord3.xyz;
-				float fresnelNdotV30 = dot( ase_normalWS, ase_viewDirWS );
+				float3 normalizeWorldNormal = packedInput.ase_texcoord3.xyz;
+				float fresnelNdotV30 = dot( normalizeWorldNormal, ase_viewDirWS );
 				float fresnelNode30 = ( 15.0 + -20.0 * pow( max( 1.0 - fresnelNdotV30 , 0.0001 ), 0.2 ) );
+				float3 ase_normalWS = packedInput.ase_texcoord4.xyz;
 				float fresnelNdotV9 = dot( ase_normalWS, ase_viewDirWS );
 				float fresnelNode9 = ( _Bias + _Scale * pow( 1.0 - fresnelNdotV9, _Power ) );
 				float4 lerpResult10 = lerp( _Color , _Color2 , fresnelNode9);
 				float mulTime27 = _TimeParameters.x * -0.02;
 				float2 appendResult42 = (float2(mulTime27 , ( 1.0 - mulTime27 )));
-				float2 texCoord40 = packedInput.ase_texcoord4.xy * float2( 1,1 ) + appendResult42;
+				float2 texCoord40 = packedInput.ase_texcoord5.xy * float2( 1,1 ) + appendResult42;
 				float mulTime56 = _TimeParameters.x * 0.05;
 				float2 appendResult54 = (float2(( 1.0 - mulTime56 ) , mulTime56));
-				float2 texCoord53 = packedInput.ase_texcoord4.xy * float2( 1,1 ) + appendResult54;
+				float2 texCoord53 = packedInput.ase_texcoord5.xy * float2( 1,1 ) + appendResult54;
 				float blendOpSrc44 = ( 0.5 * tex2D( _Noise, texCoord40 ).r );
 				float blendOpDest44 = ( 2.0 * tex2D( _Noise, texCoord53 ).b );
 				float mulTime62 = _TimeParameters.x * -0.02;
 				float2 appendResult60 = (float2(mulTime62 , mulTime62));
-				float2 texCoord59 = packedInput.ase_texcoord4.xy * float2( 1,1 ) + appendResult60;
+				float2 texCoord59 = packedInput.ase_texcoord5.xy * float2( 1,1 ) + appendResult60;
 				float blendOpSrc58 = ( saturate( max( blendOpSrc44, blendOpDest44 ) ));
 				float blendOpDest58 = ( 0.35 * tex2D( _Noise, texCoord59 ).g );
+				
+				float4 triplanar83 = TriplanarSampling83( _DissolveNoise, _DissolveNoise_ST, ase_positionWS, ase_normalWS, 1.0, _DissolveTilling, 1.0, 0 );
+				float smoothstepResult84 = smoothstep( ( _DissolveValue - _DissolveFether ) , _DissolveValue , triplanar83.w);
 				
 
 				SurfaceDescription surfaceDescription = (SurfaceDescription)0;
 
 				surfaceDescription.Color = saturate( ( ( ( fresnelNode30 * _Color2 ) * _Float3 ) + ( lerpResult10 + ( _Color2 * ( saturate( ( 1.0 - ( 1.0 - blendOpSrc58 ) * ( 1.0 - blendOpDest58 ) ) )) ) ) ) ).rgb;
 				surfaceDescription.Emission = 0;
-				surfaceDescription.Alpha = 1;
+				surfaceDescription.Alpha = smoothstepResult84;
 
 				#ifdef _ALPHATEST_ON
 				surfaceDescription.AlphaClipThreshold = _AlphaCutoff;
@@ -1590,10 +1675,14 @@ Shader "EletricBall"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color2;
 			float4 _Color;
+			float4 _DissolveNoise_ST;
+			float2 _DissolveTilling;
 			float _Float3;
 			float _Bias;
 			float _Scale;
 			float _Power;
+			float _DissolveValue;
+			float _DissolveFether;
 			float4 _EmissionColor;
 			float _RenderQueueType;
 			#ifdef _ADD_PRECOMPUTED_VELOCITY
@@ -1650,7 +1739,8 @@ Shader "EletricBall"
 			#endif
 			CBUFFER_END
 
-			
+			sampler2D _DissolveNoise;
+
 
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/PickingSpaceTransforms.hlsl"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Debug/DebugDisplay.hlsl"
@@ -1660,7 +1750,8 @@ Shader "EletricBall"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/MaterialUtilities.hlsl"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderGraphFunctions.hlsl"
 
-			
+			#define ASE_NEEDS_VERT_NORMAL
+
 
 			struct AttributesMesh
 			{
@@ -1673,13 +1764,26 @@ Shader "EletricBall"
 			struct PackedVaryingsMeshToPS
 			{
 				float4 positionCS : SV_Position;
-				
+				float4 ase_texcoord : TEXCOORD0;
+				float4 ase_texcoord1 : TEXCOORD1;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
 
 
+			inline float4 TriplanarSampling83( sampler2D topTexMap, const float4 topST, float3 worldPos, float3 worldNormal, float falloff, float2 tiling, float3 normalScale, float3 index )
+			{
+				float3 projNormal = ( pow( abs( worldNormal ), falloff ) );
+				projNormal /= ( projNormal.x + projNormal.y + projNormal.z ) + 0.00001;
+				float3 nsign = sign( worldNormal );
+				half4 xNorm; half4 yNorm; half4 zNorm;
+				xNorm = tex2D( topTexMap, tiling * worldPos.zy * float2(  nsign.x, 1.0 ) * topST.xy + topST.zw );
+				yNorm = tex2D( topTexMap, tiling * worldPos.xz * float2(  nsign.y, 1.0 ) * topST.xy + topST.zw );
+				zNorm = tex2D( topTexMap, tiling * worldPos.xy * float2( -nsign.z, 1.0 ) * topST.xy + topST.zw );
+				return xNorm * projNormal.x + yNorm * projNormal.y + zNorm * projNormal.z;
+			}
 			
+
 			struct SurfaceDescription
 			{
 				float Alpha;
@@ -1728,7 +1832,15 @@ Shader "EletricBall"
 				UNITY_TRANSFER_INSTANCE_ID(inputMesh, o);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO( o );
 
+				float3 ase_positionWS = GetAbsolutePositionWS( TransformObjectToWorld( ( inputMesh.positionOS ).xyz ) );
+				o.ase_texcoord.xyz = ase_positionWS;
+				float3 ase_normalWS = TransformObjectToWorldNormal( inputMesh.normalOS );
+				o.ase_texcoord1.xyz = ase_normalWS;
 				
+				
+				//setting value to unused interpolator channels and avoid initialization warnings
+				o.ase_texcoord.w = 0;
+				o.ase_texcoord1.w = 0;
 				#ifdef ASE_ABSOLUTE_VERTEX_POS
 				float3 defaultVertexValue = inputMesh.positionOS.xyz;
 				#else
@@ -1851,11 +1963,15 @@ Shader "EletricBall"
 
 				float3 V = float3( 1.0, 1.0, 1.0 );
 
+				float3 ase_positionWS = packedInput.ase_texcoord.xyz;
+				float3 ase_normalWS = packedInput.ase_texcoord1.xyz;
+				float4 triplanar83 = TriplanarSampling83( _DissolveNoise, _DissolveNoise_ST, ase_positionWS, ase_normalWS, 1.0, _DissolveTilling, 1.0, 0 );
+				float smoothstepResult84 = smoothstep( ( _DissolveValue - _DissolveFether ) , _DissolveValue , triplanar83.w);
 				
 
 				SurfaceDescription surfaceDescription = (SurfaceDescription)0;
 
-				surfaceDescription.Alpha = 1;
+				surfaceDescription.Alpha = smoothstepResult84;
 
 				#ifdef _ALPHATEST_ON
 				surfaceDescription.AlphaClipThreshold = _AlphaCutoff;
@@ -1936,10 +2052,14 @@ Shader "EletricBall"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color2;
 			float4 _Color;
+			float4 _DissolveNoise_ST;
+			float2 _DissolveTilling;
 			float _Float3;
 			float _Bias;
 			float _Scale;
 			float _Power;
+			float _DissolveValue;
+			float _DissolveFether;
 			float4 _EmissionColor;
 			float _RenderQueueType;
 			#ifdef _ADD_PRECOMPUTED_VELOCITY
@@ -1996,7 +2116,8 @@ Shader "EletricBall"
 			#endif
 			CBUFFER_END
 
-			
+			sampler2D _DissolveNoise;
+
 
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Debug/DebugDisplay.hlsl"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Material.hlsl"
@@ -2005,7 +2126,10 @@ Shader "EletricBall"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/MaterialUtilities.hlsl"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderGraphFunctions.hlsl"
 
-			
+			#define ASE_NEEDS_RELATIVE_WORLD_POS
+			#define ASE_NEEDS_FRAG_RELATIVE_WORLD_POS
+			#define ASE_NEEDS_VERT_NORMAL
+
 
 			struct AttributesMesh
 			{
@@ -2019,12 +2143,24 @@ Shader "EletricBall"
 			{
 				float4 positionCS : SV_Position;
 				float3 positionRWS : TEXCOORD0;
-				
+				float4 ase_texcoord1 : TEXCOORD1;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
 
+			inline float4 TriplanarSampling83( sampler2D topTexMap, const float4 topST, float3 worldPos, float3 worldNormal, float falloff, float2 tiling, float3 normalScale, float3 index )
+			{
+				float3 projNormal = ( pow( abs( worldNormal ), falloff ) );
+				projNormal /= ( projNormal.x + projNormal.y + projNormal.z ) + 0.00001;
+				float3 nsign = sign( worldNormal );
+				half4 xNorm; half4 yNorm; half4 zNorm;
+				xNorm = tex2D( topTexMap, tiling * worldPos.zy * float2(  nsign.x, 1.0 ) * topST.xy + topST.zw );
+				yNorm = tex2D( topTexMap, tiling * worldPos.xz * float2(  nsign.y, 1.0 ) * topST.xy + topST.zw );
+				zNorm = tex2D( topTexMap, tiling * worldPos.xy * float2( -nsign.z, 1.0 ) * topST.xy + topST.zw );
+				return xNorm * projNormal.x + yNorm * projNormal.y + zNorm * projNormal.z;
+			}
 			
+
 			struct SurfaceDescription
 			{
 				float Alpha;
@@ -2079,7 +2215,12 @@ Shader "EletricBall"
 				UNITY_TRANSFER_INSTANCE_ID(inputMesh, o);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO( o );
 
+				float3 ase_normalWS = TransformObjectToWorldNormal( inputMesh.normalOS );
+				o.ase_texcoord1.xyz = ase_normalWS;
 				
+				
+				//setting value to unused interpolator channels and avoid initialization warnings
+				o.ase_texcoord1.w = 0;
 				#ifdef ASE_ABSOLUTE_VERTEX_POS
 				float3 defaultVertexValue = inputMesh.positionOS.xyz;
 				#else
@@ -2218,11 +2359,15 @@ Shader "EletricBall"
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, packedInput.positionCS.z ) * packedInput.positionCS.w;
 				float4 ScreenPos = ComputeScreenPos( ClipPos, _ProjectionParams.x );
 
+				float3 ase_positionWS = GetAbsolutePositionWS( PositionRWS );
+				float3 ase_normalWS = packedInput.ase_texcoord1.xyz;
+				float4 triplanar83 = TriplanarSampling83( _DissolveNoise, _DissolveNoise_ST, ase_positionWS, ase_normalWS, 1.0, _DissolveTilling, 1.0, 0 );
+				float smoothstepResult84 = smoothstep( ( _DissolveValue - _DissolveFether ) , _DissolveValue , triplanar83.w);
 				
 
 				SurfaceDescription surfaceDescription = (SurfaceDescription)0;
 
-				surfaceDescription.Alpha = 1;
+				surfaceDescription.Alpha = smoothstepResult84;
 
 				#ifdef _ALPHATEST_ON
 				surfaceDescription.AlphaClipThreshold = _AlphaCutoff;
@@ -2316,10 +2461,14 @@ Shader "EletricBall"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color2;
 			float4 _Color;
+			float4 _DissolveNoise_ST;
+			float2 _DissolveTilling;
 			float _Float3;
 			float _Bias;
 			float _Scale;
 			float _Power;
+			float _DissolveValue;
+			float _DissolveFether;
 			float4 _EmissionColor;
 			float _RenderQueueType;
 			#ifdef _ADD_PRECOMPUTED_VELOCITY
@@ -2376,7 +2525,8 @@ Shader "EletricBall"
 			#endif
 			CBUFFER_END
 
-			
+			sampler2D _DissolveNoise;
+
 
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Debug/DebugDisplay.hlsl"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Material.hlsl"
@@ -2385,7 +2535,8 @@ Shader "EletricBall"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/MaterialUtilities.hlsl"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderGraphFunctions.hlsl"
 
-			
+			#define ASE_NEEDS_VERT_NORMAL
+
 
 			struct AttributesMesh
 			{
@@ -2403,12 +2554,25 @@ Shader "EletricBall"
 				float3 vmeshPositionRWS : TEXCOORD0;
 				float3 vpassPositionCS : TEXCOORD1;
 				float3 vpassPreviousPositionCS : TEXCOORD2;
-				
+				float4 ase_texcoord3 : TEXCOORD3;
+				float4 ase_texcoord4 : TEXCOORD4;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
 
+			inline float4 TriplanarSampling83( sampler2D topTexMap, const float4 topST, float3 worldPos, float3 worldNormal, float falloff, float2 tiling, float3 normalScale, float3 index )
+			{
+				float3 projNormal = ( pow( abs( worldNormal ), falloff ) );
+				projNormal /= ( projNormal.x + projNormal.y + projNormal.z ) + 0.00001;
+				float3 nsign = sign( worldNormal );
+				half4 xNorm; half4 yNorm; half4 zNorm;
+				xNorm = tex2D( topTexMap, tiling * worldPos.zy * float2(  nsign.x, 1.0 ) * topST.xy + topST.zw );
+				yNorm = tex2D( topTexMap, tiling * worldPos.xz * float2(  nsign.y, 1.0 ) * topST.xy + topST.zw );
+				zNorm = tex2D( topTexMap, tiling * worldPos.xy * float2( -nsign.z, 1.0 ) * topST.xy + topST.zw );
+				return xNorm * projNormal.x + yNorm * projNormal.y + zNorm * projNormal.z;
+			}
 			
+
 			struct SurfaceDescription
 			{
 				float Alpha;
@@ -2461,7 +2625,15 @@ Shader "EletricBall"
 			AttributesMesh ApplyMeshModification(AttributesMesh inputMesh, float3 timeParameters, inout PackedVaryingsMeshToPS o )
 			{
 				_TimeParameters.xyz = timeParameters;
+				float3 ase_positionWS = GetAbsolutePositionWS( TransformObjectToWorld( ( inputMesh.positionOS ).xyz ) );
+				o.ase_texcoord3.xyz = ase_positionWS;
+				float3 ase_normalWS = TransformObjectToWorldNormal( inputMesh.normalOS );
+				o.ase_texcoord4.xyz = ase_normalWS;
 				
+				
+				//setting value to unused interpolator channels and avoid initialization warnings
+				o.ase_texcoord3.w = 0;
+				o.ase_texcoord4.w = 0;
 
 				#ifdef ASE_ABSOLUTE_VERTEX_POS
 				float3 defaultVertexValue = inputMesh.positionOS.xyz;
@@ -2684,11 +2856,15 @@ Shader "EletricBall"
 
 				float3 V = GetWorldSpaceNormalizeViewDir(input.positionRWS);
 
+				float3 ase_positionWS = packedInput.ase_texcoord3.xyz;
+				float3 ase_normalWS = packedInput.ase_texcoord4.xyz;
+				float4 triplanar83 = TriplanarSampling83( _DissolveNoise, _DissolveNoise_ST, ase_positionWS, ase_normalWS, 1.0, _DissolveTilling, 1.0, 0 );
+				float smoothstepResult84 = smoothstep( ( _DissolveValue - _DissolveFether ) , _DissolveValue , triplanar83.w);
 				
 
 				SurfaceDescription surfaceDescription = (SurfaceDescription)0;
 
-				surfaceDescription.Alpha = 1;
+				surfaceDescription.Alpha = smoothstepResult84;
 
 				#ifdef _ALPHATEST_ON
 				surfaceDescription.AlphaClipThreshold = _AlphaCutoff;
@@ -2805,10 +2981,14 @@ Shader "EletricBall"
             CBUFFER_START( UnityPerMaterial )
 			float4 _Color2;
 			float4 _Color;
+			float4 _DissolveNoise_ST;
+			float2 _DissolveTilling;
 			float _Float3;
 			float _Bias;
 			float _Scale;
 			float _Power;
+			float _DissolveValue;
+			float _DissolveFether;
 			float4 _EmissionColor;
 			float _RenderQueueType;
 			#ifdef _ADD_PRECOMPUTED_VELOCITY
@@ -2865,7 +3045,8 @@ Shader "EletricBall"
 			#endif
 			CBUFFER_END
 
-			
+			sampler2D _DissolveNoise;
+
 
             #include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/PickingSpaceTransforms.hlsl"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Debug/DebugDisplay.hlsl"
@@ -2875,7 +3056,9 @@ Shader "EletricBall"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/MaterialUtilities.hlsl"
 			#include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderGraphFunctions.hlsl"
 
-			
+			#define ASE_NEEDS_WORLD_NORMAL
+			#define ASE_NEEDS_FRAG_WORLD_NORMAL
+
 
 			struct AttributesMesh
 			{
@@ -2891,12 +3074,24 @@ Shader "EletricBall"
 				float4 positionCS : SV_POSITION;
 				float3 normalWS : TEXCOORD0;
 				float4 tangentWS : TEXCOORD1;
-				
+				float4 ase_texcoord2 : TEXCOORD2;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
 
+			inline float4 TriplanarSampling83( sampler2D topTexMap, const float4 topST, float3 worldPos, float3 worldNormal, float falloff, float2 tiling, float3 normalScale, float3 index )
+			{
+				float3 projNormal = ( pow( abs( worldNormal ), falloff ) );
+				projNormal /= ( projNormal.x + projNormal.y + projNormal.z ) + 0.00001;
+				float3 nsign = sign( worldNormal );
+				half4 xNorm; half4 yNorm; half4 zNorm;
+				xNorm = tex2D( topTexMap, tiling * worldPos.zy * float2(  nsign.x, 1.0 ) * topST.xy + topST.zw );
+				yNorm = tex2D( topTexMap, tiling * worldPos.xz * float2(  nsign.y, 1.0 ) * topST.xy + topST.zw );
+				zNorm = tex2D( topTexMap, tiling * worldPos.xy * float2( -nsign.z, 1.0 ) * topST.xy + topST.zw );
+				return xNorm * projNormal.x + yNorm * projNormal.y + zNorm * projNormal.z;
+			}
 			
+
             struct SurfaceDescription
 			{
 				float Alpha;
@@ -2953,7 +3148,12 @@ Shader "EletricBall"
 				UNITY_SETUP_INSTANCE_ID(inputMesh);
 				UNITY_TRANSFER_INSTANCE_ID(inputMesh, o );
 
+				float3 ase_positionWS = GetAbsolutePositionWS( TransformObjectToWorld( ( inputMesh.positionOS ).xyz ) );
+				o.ase_texcoord2.xyz = ase_positionWS;
 				
+				
+				//setting value to unused interpolator channels and avoid initialization warnings
+				o.ase_texcoord2.w = 0;
 				#ifdef ASE_ABSOLUTE_VERTEX_POS
 				float3 defaultVertexValue = inputMesh.positionOS.xyz;
 				#else
@@ -3085,11 +3285,14 @@ Shader "EletricBall"
 
 				float3 V = float3(1.0, 1.0, 1.0);
 
+				float3 ase_positionWS = packedInput.ase_texcoord2.xyz;
+				float4 triplanar83 = TriplanarSampling83( _DissolveNoise, _DissolveNoise_ST, ase_positionWS, packedInput.normalWS, 1.0, _DissolveTilling, 1.0, 0 );
+				float smoothstepResult84 = smoothstep( ( _DissolveValue - _DissolveFether ) , _DissolveValue , triplanar83.w);
 				
 
 				SurfaceDescription surfaceDescription = (SurfaceDescription)0;
 
-				surfaceDescription.Alpha = 1;
+				surfaceDescription.Alpha = smoothstepResult84;
 
 				#ifdef _ALPHATEST_ON
 				surfaceDescription.AlphaClipThreshold = _AlphaCutoff;
@@ -3236,6 +3439,13 @@ Shader "EletricBall"
 }
 /*ASEBEGIN
 Version=19905
+Node;AmplifyShaderEditor.CommentaryNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;101;-128,528;Inherit;False;1092;474.9;Dissolve;7;87;92;100;83;99;84;88;;1,1,1,1;0;0
+Node;AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;87;-80,576;Inherit;True;Property;_DissolveNoise;Dissolve Noise;7;0;Create;True;0;0;0;False;0;False;None;None;False;white;Auto;Texture2D;False;-1;0;2;SAMPLER2D;0;SAMPLERSTATE;1
+Node;AmplifyShaderEditor.RangedFloatNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;92;288,784;Inherit;False;Property;_DissolveValue;Dissolve Value;9;0;Create;True;0;0;0;False;0;False;0;0;0;1;0;1;FLOAT;0
+Node;AmplifyShaderEditor.RangedFloatNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;100;224,880;Inherit;False;Property;_DissolveFether;Dissolve Fether;10;0;Create;True;0;0;0;False;0;False;0;0;0;0.4;0;1;FLOAT;0
+Node;AmplifyShaderEditor.Vector2Node, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;88;-48,768;Inherit;False;Property;_DissolveTilling;Dissolve Tilling;8;0;Create;True;0;0;0;False;0;False;0,0;0,0;0;3;FLOAT2;0;FLOAT;1;FLOAT;2
+Node;AmplifyShaderEditor.TriplanarNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;83;192,576;Inherit;True;Spherical;World;False;Top Texture 0;_TopTexture0;white;-1;None;Mid Texture 0;_MidTexture0;white;-1;None;Bot Texture 0;_BotTexture0;white;-1;None;Triplanar Sample;Tangent;10;0;SAMPLER2D;;False;5;FLOAT;1;False;1;SAMPLER2D;;False;6;FLOAT;0;False;2;SAMPLER2D;;False;7;FLOAT;0;False;9;FLOAT3;0,0,0;False;8;FLOAT;1;False;3;FLOAT2;1,1;False;4;FLOAT;1;False;5;FLOAT4;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4
+Node;AmplifyShaderEditor.SimpleSubtractOpNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;99;576,864;Inherit;False;2;0;FLOAT;0;False;1;FLOAT;0.2;False;1;FLOAT;0
 Node;AmplifyShaderEditor.TextureCoordinatesNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;40;-1152,320;Inherit;False;0;-1;2;3;2;SAMPLER2D;;False;0;FLOAT2;1,1;False;1;FLOAT2;0,0;False;5;FLOAT2;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4
 Node;AmplifyShaderEditor.DynamicAppendNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;42;-1328,368;Inherit;False;FLOAT2;4;0;FLOAT;0;False;1;FLOAT;0;False;2;FLOAT;0;False;3;FLOAT;0;False;1;FLOAT2;0
 Node;AmplifyShaderEditor.OneMinusNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;43;-1488,448;Inherit;False;1;0;FLOAT;0;False;1;FLOAT;0
@@ -3270,6 +3480,7 @@ Node;AmplifyShaderEditor.SimpleMultiplyOpNode, AmplifyShaderEditor, Version=0.0.
 Node;AmplifyShaderEditor.SimpleMultiplyOpNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;37;336,-80;Inherit;False;2;2;0;COLOR;0,0,0,0;False;1;FLOAT;0;False;1;COLOR;0
 Node;AmplifyShaderEditor.RangedFloatNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;38;112,0;Inherit;False;Property;_Float3;Float 3;5;0;Create;True;0;0;0;False;0;False;0;0;0;0;0;1;FLOAT;0
 Node;AmplifyShaderEditor.FresnelNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;30;-176,-352;Inherit;False;Standard;WorldNormal;ViewDir;True;True;5;0;FLOAT3;0,0,1;False;4;FLOAT3;0,0,0;False;1;FLOAT;15;False;2;FLOAT;-20;False;3;FLOAT;0.2;False;1;FLOAT;0
+Node;AmplifyShaderEditor.SmoothstepOpNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;84;752,736;Inherit;False;3;0;FLOAT;0;False;1;FLOAT;0;False;2;FLOAT;1;False;1;FLOAT;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;2;0,0;Float;False;False;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;1;New Amplify Shader;7f5cb9c3ea6481f469fdd856555439ef;True;ShadowCaster;0;1;ShadowCaster;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;0;True;_CullMode;False;True;False;False;False;False;0;False;;False;False;False;False;False;False;False;False;False;True;1;False;;False;False;True;1;LightMode=ShadowCaster;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;3;0,0;Float;False;False;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;1;New Amplify Shader;7f5cb9c3ea6481f469fdd856555439ef;True;META;0;2;META;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;2;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;1;LightMode=Meta;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;4;0,0;Float;False;False;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;1;New Amplify Shader;7f5cb9c3ea6481f469fdd856555439ef;True;SceneSelectionPass;0;3;SceneSelectionPass;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;2;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;1;LightMode=SceneSelectionPass;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
@@ -3277,7 +3488,11 @@ Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Versi
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;6;0,0;Float;False;False;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;1;New Amplify Shader;7f5cb9c3ea6481f469fdd856555439ef;True;MotionVectors;0;5;MotionVectors;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;0;True;_CullMode;False;False;False;False;False;False;False;False;False;True;True;0;True;_StencilRefMV;255;False;;255;True;_StencilWriteMaskMV;7;False;;3;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;False;False;True;1;LightMode=MotionVectors;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;7;0,0;Float;False;False;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;1;New Amplify Shader;7f5cb9c3ea6481f469fdd856555439ef;True;DistortionVectors;0;6;DistortionVectors;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;True;4;1;False;;1;False;;4;1;False;;1;False;;True;1;False;;1;False;;False;False;False;False;False;False;False;False;False;False;False;True;0;True;_CullMode;False;False;False;False;False;False;False;False;False;True;True;0;True;_StencilRefDistortionVec;255;False;;255;True;_StencilWriteMaskDistortionVec;7;False;;3;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;2;False;;True;3;False;;False;True;1;LightMode=DistortionVectors;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;8;0,0;Float;False;False;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;1;New Amplify Shader;7f5cb9c3ea6481f469fdd856555439ef;True;ScenePickingPass;0;7;ScenePickingPass;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;0;True;_CullMode;False;False;False;False;False;False;False;False;False;False;False;True;2;False;;True;3;False;;False;True;1;LightMode=Picking;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;1;960,64;Float;False;True;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;13;EletricBall;7f5cb9c3ea6481f469fdd856555439ef;True;Forward Unlit;0;0;Forward Unlit;12;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;False;False;False;True;3;1;False;;10;False;;0;1;False;;0;False;;False;False;True;1;1;False;;0;True;_DstBlend2;0;1;False;;0;False;;False;False;True;1;1;False;;0;True;_DstBlend2;0;1;False;;0;False;;False;False;False;True;0;True;_CullModeForward;False;False;False;True;True;True;True;True;0;True;_ColorMaskTransparentVel;False;False;False;False;False;True;True;0;True;_StencilRef;255;False;;255;True;_StencilWriteMask;7;False;;3;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;0;True;_ZWrite;True;0;True;_ZTestDepthEqualForOpaque;False;True;1;LightMode=ForwardOnly;False;False;0;Hidden/InternalErrorShader;0;0;Standard;34;Surface Type;0;0;  Rendering Pass ;0;0;  Rendering Pass;1;0;  Blending Mode;0;0;  Receive Fog;1;0;  Distortion;0;0;    Distortion Mode;0;0;    Distortion Only;1;0;  Depth Write;1;0;  Cull Mode;0;0;  Depth Test;4;0;Double-Sided;0;0;Alpha Clipping;0;0;  Use Shadow Threshold;0;0;Receive Decals;1;0;Motion Vectors;1;0;  Add Precomputed Velocity;0;0;Shadow Matte;0;0;Cast Shadows;1;0;Write Depth;0;0;  Depth Offset;0;0;  Conservative;0;0;GPU Instancing;1;0;Tessellation;0;0;  Phong;0;0;  Strength;0.5,False,;0;  Type;0;0;  Tess;16,False,;0;  Min;10,False,;0;  Max;25,False,;0;  Edge Length;16,False,;0;  Max Displacement;25,False,;0;Vertex Position;1;0;LOD CrossFade;0;0;0;8;True;True;True;True;True;True;False;True;False;;False;0
+Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;1;1136,64;Float;False;True;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;13;EletricBall;7f5cb9c3ea6481f469fdd856555439ef;True;Forward Unlit;0;0;Forward Unlit;12;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;False;False;False;True;3;1;False;;10;False;;0;1;False;;0;False;;False;False;True;1;1;False;;0;True;_DstBlend2;0;1;False;;0;False;;False;False;True;1;1;False;;0;True;_DstBlend2;0;1;False;;0;False;;False;False;False;True;0;True;_CullModeForward;False;False;False;True;True;True;True;True;0;True;_ColorMaskTransparentVel;False;False;False;False;False;True;True;0;True;_StencilRef;255;False;;255;True;_StencilWriteMask;7;False;;3;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;0;True;_ZWrite;True;0;True;_ZTestDepthEqualForOpaque;False;True;1;LightMode=ForwardOnly;False;False;0;Hidden/InternalErrorShader;0;0;Standard;34;Surface Type;0;0;  Rendering Pass ;0;0;  Rendering Pass;1;0;  Blending Mode;0;0;  Receive Fog;1;0;  Distortion;0;0;    Distortion Mode;0;0;    Distortion Only;1;0;  Depth Write;1;0;  Cull Mode;0;0;  Depth Test;4;0;Double-Sided;0;0;Alpha Clipping;0;0;  Use Shadow Threshold;0;0;Receive Decals;1;0;Motion Vectors;1;0;  Add Precomputed Velocity;0;0;Shadow Matte;0;0;Cast Shadows;1;0;Write Depth;0;0;  Depth Offset;0;0;  Conservative;0;0;GPU Instancing;1;0;Tessellation;0;0;  Phong;0;0;  Strength;0.5,False,;0;  Type;0;0;  Tess;16,False,;0;  Min;10,False,;0;  Max;25,False,;0;  Edge Length;16,False,;0;  Max Displacement;25,False,;0;Vertex Position;1;0;LOD CrossFade;0;0;0;8;True;True;True;True;True;True;False;True;False;;False;0
+WireConnection;83;0;87;0
+WireConnection;83;3;88;0
+WireConnection;99;0;92;0
+WireConnection;99;1;100;0
 WireConnection;40;1;42;0
 WireConnection;42;0;27;0
 WireConnection;42;1;43;0
@@ -3316,6 +3531,10 @@ WireConnection;36;0;30;0
 WireConnection;36;1;12;0
 WireConnection;37;0;36;0
 WireConnection;37;1;38;0
+WireConnection;84;0;83;4
+WireConnection;84;1;99;0
+WireConnection;84;2;92;0
 WireConnection;1;0;17;0
+WireConnection;1;2;84;0
 ASEEND*/
-//CHKSM=7D2D9E9A6F1D21DE6DFDC8431185D100E515EAA0
+//CHKSM=9CDBCC309DFB607059239D7E8A8103368B3B2497
