@@ -9,8 +9,6 @@ public class ClickableObject : MonoBehaviour
     public UnityEvent OnObjectEndHover;
     private void OnMouseDown()
     {
-        Debug.Log(gameObject.name + " foi clicado!");
-
         if (OnObjectClick != null)
         {
             OnObjectClick.Invoke();
@@ -19,8 +17,6 @@ public class ClickableObject : MonoBehaviour
 
     private void OnMouseEnter()
     {
-        Debug.Log(gameObject.name + " foi hovered!");
-
         if (OnObjectHover != null)
         {
             OnObjectHover.Invoke();
@@ -29,8 +25,6 @@ public class ClickableObject : MonoBehaviour
     
     private void OnMouseExit()
     {
-        Debug.Log(gameObject.name + " foi hovered!");
-
         if (OnObjectEndHover != null)
         {
             OnObjectEndHover.Invoke();

@@ -4,7 +4,6 @@ using UnityEngine.UI;
 
 public class VFXManager : MonoBehaviour
 {
-    
     [SerializeField]
     private List<GameObject> VFXs = new List<GameObject>();
     
@@ -21,9 +20,8 @@ public class VFXManager : MonoBehaviour
         {
             light.color = ColorProfiles[(int)slider.value].LightColor;
         }
-        
-            foreach (var VFX in VFXs)
-            {
+        foreach (var VFX in VFXs)
+        {
                 foreach (var rend in VFX.GetComponentsInChildren<Renderer>(true))
                 {
                     Material mat = rend.material;
@@ -37,8 +35,6 @@ public class VFXManager : MonoBehaviour
                         }
                     }
                 }
-            }
-        
-        
+        }
     }
 }
