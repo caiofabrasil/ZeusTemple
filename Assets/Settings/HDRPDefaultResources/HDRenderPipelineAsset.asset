@@ -16,7 +16,7 @@ MonoBehaviour:
     supportShadowMask: 1
     supportSSR: 0
     supportSSRTransparent: 0
-    supportSSAO: 1
+    supportSSAO: 0
     supportSSGI: 0
     supportSubsurfaceScattering: 1
     sssSampleBudget:
@@ -46,12 +46,12 @@ MonoBehaviour:
       m_Bits: 0
     supportDistortion: 1
     supportTransparentBackface: 1
-    supportTransparentDepthPrepass: 1
-    supportTransparentDepthPostpass: 1
+    supportTransparentDepthPrepass: 0
+    supportTransparentDepthPostpass: 0
     colorBufferFormat: 74
-    supportCustomPass: 1
+    supportCustomPass: 0
     customBufferFormat: 12
-    supportedLitShaderMode: 2
+    supportedLitShaderMode: 1
     planarReflectionResolution:
       m_Values: 000100000004000000080000
       m_SchemaId:
@@ -60,7 +60,7 @@ MonoBehaviour:
       m_Values: 000100000002000000040000
       m_SchemaId:
         m_Id: With3Levels
-    supportDecals: 1
+    supportDecals: 0
     supportDecalLayers: 0
     supportSurfaceGradient: 0
     decalNormalBufferHP: 0
