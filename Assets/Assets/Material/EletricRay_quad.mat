@@ -41,7 +41,7 @@ Material:
     - _RayHeight: 400
     - _RayWidth: 0.06
     m_Colors:
-    - _NoiseTiling: {r: 1, g: 9.4, b: 0, a: 0}
+    - _NoiseTiling: {r: 1, g: 5.28, b: 0, a: 0}
     - _Vector0: {r: 0.5, g: 1, b: 0, a: 0}
     - _Vector1: {r: 0.1, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []

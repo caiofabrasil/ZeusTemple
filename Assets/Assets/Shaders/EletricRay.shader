@@ -10,6 +10,7 @@ Shader "EletricRay"
 		[Toggle] _ParticleSystem( "Particle System", Float ) = 0
 		_RayWidth( "Ray Width", Float ) = 0.25
 		_RayHeight( "Ray Height", Float ) = 1
+		_TimeScale( "TimeScale", Float ) = 1
 
 		[HideInInspector] _RenderQueueType("Render Queue Type", Float) = 1
 		[HideInInspector][ToggleUI] _AddPrecomputedVelocity("Add Precomputed Velocity", Float) = 1
@@ -268,6 +269,7 @@ Shader "EletricRay"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color;
 			float2 _NoiseTiling;
+			float _TimeScale;
 			float _DistortionAmount;
 			float _ParticleSystem;
 			float _RayWidth;
@@ -659,7 +661,8 @@ Shader "EletricRay"
 				float2 texCoord15 = packedInput.ase_texcoord1.xy * float2( 1,1 ) + float2( -0.15,0 );
 				float2 texCoord13 = packedInput.ase_texcoord1.xy * float2( 1,1 ) + float2( 0,0 );
 				float2 Tiling60 = _NoiseTiling;
-				float2 appendResult21 = (float2(_TimeParameters.x , 0.0));
+				float mulTime20 = _TimeParameters.x * _TimeScale;
+				float2 appendResult21 = (float2(mulTime20 , 0.0));
 				float2 texCoord18 = packedInput.ase_texcoord1.xy * Tiling60 + appendResult21;
 				float simplePerlin3D27 = snoise( float3( texCoord18 ,  0.0 )*4.0 );
 				simplePerlin3D27 = simplePerlin3D27*0.5 + 0.5;
@@ -850,6 +853,7 @@ Shader "EletricRay"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color;
 			float2 _NoiseTiling;
+			float _TimeScale;
 			float _DistortionAmount;
 			float _ParticleSystem;
 			float _RayWidth;
@@ -1177,7 +1181,8 @@ Shader "EletricRay"
 				float2 texCoord15 = packedInput.ase_texcoord1.xy * float2( 1,1 ) + float2( -0.15,0 );
 				float2 texCoord13 = packedInput.ase_texcoord1.xy * float2( 1,1 ) + float2( 0,0 );
 				float2 Tiling60 = _NoiseTiling;
-				float2 appendResult21 = (float2(_TimeParameters.x , 0.0));
+				float mulTime20 = _TimeParameters.x * _TimeScale;
+				float2 appendResult21 = (float2(mulTime20 , 0.0));
 				float2 texCoord18 = packedInput.ase_texcoord1.xy * Tiling60 + appendResult21;
 				float simplePerlin3D27 = snoise( float3( texCoord18 ,  0.0 )*4.0 );
 				simplePerlin3D27 = simplePerlin3D27*0.5 + 0.5;
@@ -1296,6 +1301,7 @@ Shader "EletricRay"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color;
 			float2 _NoiseTiling;
+			float _TimeScale;
 			float _DistortionAmount;
 			float _ParticleSystem;
 			float _RayWidth;
@@ -1663,7 +1669,8 @@ Shader "EletricRay"
 				float2 texCoord15 = packedInput.ase_texcoord2.xy * float2( 1,1 ) + float2( -0.15,0 );
 				float2 texCoord13 = packedInput.ase_texcoord2.xy * float2( 1,1 ) + float2( 0,0 );
 				float2 Tiling60 = _NoiseTiling;
-				float2 appendResult21 = (float2(_TimeParameters.x , 0.0));
+				float mulTime20 = _TimeParameters.x * _TimeScale;
+				float2 appendResult21 = (float2(mulTime20 , 0.0));
 				float2 texCoord18 = packedInput.ase_texcoord2.xy * Tiling60 + appendResult21;
 				float simplePerlin3D27 = snoise( float3( texCoord18 ,  0.0 )*4.0 );
 				simplePerlin3D27 = simplePerlin3D27*0.5 + 0.5;
@@ -1763,6 +1770,7 @@ Shader "EletricRay"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color;
 			float2 _NoiseTiling;
+			float _TimeScale;
 			float _DistortionAmount;
 			float _ParticleSystem;
 			float _RayWidth;
@@ -2088,7 +2096,8 @@ Shader "EletricRay"
 				float2 texCoord15 = packedInput.ase_texcoord.xy * float2( 1,1 ) + float2( -0.15,0 );
 				float2 texCoord13 = packedInput.ase_texcoord.xy * float2( 1,1 ) + float2( 0,0 );
 				float2 Tiling60 = _NoiseTiling;
-				float2 appendResult21 = (float2(_TimeParameters.x , 0.0));
+				float mulTime20 = _TimeParameters.x * _TimeScale;
+				float2 appendResult21 = (float2(mulTime20 , 0.0));
 				float2 texCoord18 = packedInput.ase_texcoord.xy * Tiling60 + appendResult21;
 				float simplePerlin3D27 = snoise( float3( texCoord18 ,  0.0 )*4.0 );
 				simplePerlin3D27 = simplePerlin3D27*0.5 + 0.5;
@@ -2191,6 +2200,7 @@ Shader "EletricRay"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color;
 			float2 _NoiseTiling;
+			float _TimeScale;
 			float _DistortionAmount;
 			float _ParticleSystem;
 			float _RayWidth;
@@ -2537,7 +2547,8 @@ Shader "EletricRay"
 				float2 texCoord15 = packedInput.ase_texcoord1.xy * float2( 1,1 ) + float2( -0.15,0 );
 				float2 texCoord13 = packedInput.ase_texcoord1.xy * float2( 1,1 ) + float2( 0,0 );
 				float2 Tiling60 = _NoiseTiling;
-				float2 appendResult21 = (float2(_TimeParameters.x , 0.0));
+				float mulTime20 = _TimeParameters.x * _TimeScale;
+				float2 appendResult21 = (float2(mulTime20 , 0.0));
 				float2 texCoord18 = packedInput.ase_texcoord1.xy * Tiling60 + appendResult21;
 				float simplePerlin3D27 = snoise( float3( texCoord18 ,  0.0 )*4.0 );
 				simplePerlin3D27 = simplePerlin3D27*0.5 + 0.5;
@@ -2653,6 +2664,7 @@ Shader "EletricRay"
 			CBUFFER_START( UnityPerMaterial )
 			float4 _Color;
 			float2 _NoiseTiling;
+			float _TimeScale;
 			float _DistortionAmount;
 			float _ParticleSystem;
 			float _RayWidth;
@@ -3085,7 +3097,8 @@ Shader "EletricRay"
 				float2 texCoord15 = packedInput.ase_texcoord3.xy * float2( 1,1 ) + float2( -0.15,0 );
 				float2 texCoord13 = packedInput.ase_texcoord3.xy * float2( 1,1 ) + float2( 0,0 );
 				float2 Tiling60 = _NoiseTiling;
-				float2 appendResult21 = (float2(_TimeParameters.x , 0.0));
+				float mulTime20 = _TimeParameters.x * _TimeScale;
+				float2 appendResult21 = (float2(mulTime20 , 0.0));
 				float2 texCoord18 = packedInput.ase_texcoord3.xy * Tiling60 + appendResult21;
 				float simplePerlin3D27 = snoise( float3( texCoord18 ,  0.0 )*4.0 );
 				simplePerlin3D27 = simplePerlin3D27*0.5 + 0.5;
@@ -3224,6 +3237,7 @@ Shader "EletricRay"
             CBUFFER_START( UnityPerMaterial )
 			float4 _Color;
 			float2 _NoiseTiling;
+			float _TimeScale;
 			float _DistortionAmount;
 			float _ParticleSystem;
 			float _RayWidth;
@@ -3568,7 +3582,8 @@ Shader "EletricRay"
 				float2 texCoord15 = packedInput.ase_texcoord2.xy * float2( 1,1 ) + float2( -0.15,0 );
 				float2 texCoord13 = packedInput.ase_texcoord2.xy * float2( 1,1 ) + float2( 0,0 );
 				float2 Tiling60 = _NoiseTiling;
-				float2 appendResult21 = (float2(_TimeParameters.x , 0.0));
+				float mulTime20 = _TimeParameters.x * _TimeScale;
+				float2 appendResult21 = (float2(mulTime20 , 0.0));
 				float2 texCoord18 = packedInput.ase_texcoord2.xy * Tiling60 + appendResult21;
 				float simplePerlin3D27 = snoise( float3( texCoord18 ,  0.0 )*4.0 );
 				simplePerlin3D27 = simplePerlin3D27*0.5 + 0.5;
@@ -3736,8 +3751,9 @@ Shader "EletricRay"
 }
 /*ASEBEGIN
 Version=19905
-Node;AmplifyShaderEditor.SimpleTimeNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;20;-2144,176;Inherit;False;1;0;FLOAT;1;False;1;FLOAT;0
+Node;AmplifyShaderEditor.RangedFloatNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;79;-2336,176;Inherit;False;Property;_TimeScale;TimeScale;6;0;Create;True;0;0;0;False;0;False;1;0;0;0;0;1;FLOAT;0
 Node;AmplifyShaderEditor.Vector2Node, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;28;-2128,32;Inherit;False;Property;_NoiseTiling;Noise Tiling;2;0;Create;True;0;0;0;False;0;False;1,2;0,0;0;3;FLOAT2;0;FLOAT;1;FLOAT;2
+Node;AmplifyShaderEditor.SimpleTimeNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;20;-2144,176;Inherit;False;1;0;FLOAT;1;False;1;FLOAT;0
 Node;AmplifyShaderEditor.DynamicAppendNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;21;-1920,176;Inherit;False;FLOAT2;4;0;FLOAT;0;False;1;FLOAT;0;False;2;FLOAT;0;False;3;FLOAT;0;False;1;FLOAT2;0
 Node;AmplifyShaderEditor.RegisterLocalVarNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;60;-1952,32;Inherit;False;Tiling;-1;True;1;0;FLOAT2;0,0;False;1;FLOAT2;0
 Node;AmplifyShaderEditor.TextureCoordinatesNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;18;-1696,96;Inherit;False;0;-1;2;3;2;SAMPLER2D;;False;0;FLOAT2;1,1;False;1;FLOAT2;0,0;False;5;FLOAT2;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4
@@ -3780,6 +3796,7 @@ Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Versi
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;7;0,0;Float;False;False;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;13;New Amplify Shader;7f5cb9c3ea6481f469fdd856555439ef;True;DistortionVectors;0;6;DistortionVectors;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;True;4;1;False;;1;False;;4;1;False;;1;False;;True;1;False;;1;False;;False;False;False;False;False;False;False;False;False;False;False;True;0;True;_CullMode;False;False;False;False;False;False;False;False;False;True;True;0;True;_StencilRefDistortionVec;255;False;;255;True;_StencilWriteMaskDistortionVec;7;False;;3;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;2;False;;True;3;False;;False;True;1;LightMode=DistortionVectors;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;8;0,0;Float;False;False;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;13;New Amplify Shader;7f5cb9c3ea6481f469fdd856555439ef;True;ScenePickingPass;0;7;ScenePickingPass;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;0;True;_CullMode;False;False;False;False;False;False;False;False;False;False;False;True;2;False;;True;3;False;;False;True;1;LightMode=Picking;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;1;560,-64;Float;False;True;-1;3;Rendering.HighDefinition.HDUnlitGUI;0;13;EletricRay;7f5cb9c3ea6481f469fdd856555439ef;True;Forward Unlit;0;0;Forward Unlit;12;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;RenderPipeline=HDRenderPipeline;RenderType=Opaque=RenderType;Queue=Transparent=Queue=0;True;5;True;7;d3d11;metal;vulkan;xboxone;xboxseries;playstation;switch;0;False;False;False;False;True;3;1;False;;10;False;;0;1;False;;0;False;;False;False;True;1;1;False;;0;True;_DstBlend2;0;1;False;;0;False;;False;False;True;1;1;False;;0;True;_DstBlend2;0;1;False;;0;False;;False;False;False;True;0;True;_CullModeForward;False;False;False;True;True;True;True;True;0;True;_ColorMaskTransparentVel;False;False;False;False;False;True;True;0;True;_StencilRef;255;False;;255;True;_StencilWriteMask;7;False;;3;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;0;True;_ZWrite;True;0;True;_ZTestDepthEqualForOpaque;False;True;1;LightMode=ForwardOnly;False;False;0;Hidden/InternalErrorShader;0;0;Standard;34;Surface Type;1;638987282856838159;  Rendering Pass ;0;0;  Rendering Pass;1;0;  Blending Mode;2;638987282990119049;  Receive Fog;1;0;  Distortion;0;0;    Distortion Mode;0;0;    Distortion Only;1;0;  Depth Write;1;0;  Cull Mode;0;0;  Depth Test;4;0;Double-Sided;1;638987343090540823;Alpha Clipping;0;0;  Use Shadow Threshold;0;0;Receive Decals;1;0;Motion Vectors;1;0;  Add Precomputed Velocity;0;0;Shadow Matte;0;0;Cast Shadows;1;0;Write Depth;0;0;  Depth Offset;0;0;  Conservative;0;0;GPU Instancing;1;0;Tessellation;0;0;  Phong;0;0;  Strength;0.5,False,;0;  Type;0;0;  Tess;16,False,;0;  Min;10,False,;0;  Max;25,False,;0;  Edge Length;16,False,;0;  Max Displacement;25,False,;0;Vertex Position;1;0;LOD CrossFade;0;0;0;8;True;True;True;True;True;True;False;True;False;;False;0
+WireConnection;20;0;79;0
 WireConnection;21;0;20;0
 WireConnection;60;0;28;0
 WireConnection;18;0;60;0
@@ -3821,4 +3838,4 @@ WireConnection;78;1;77;0
 WireConnection;1;0;11;0
 WireConnection;1;2;78;0
 ASEEND*/
-//CHKSM=F72755704CD409C475204D7B869E3385B1DC47CE
+//CHKSM=16ECE0676F6E3DBA2B76273F8A87D3928B42C92F
