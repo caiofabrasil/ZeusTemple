@@ -40,6 +40,9 @@ Demais objetos 3D foram baixados gratuitamente da internet, ao final do Read-ME 
   - Animação de parametros para mascarar parte do efeito para dar a sensação do efeito estar crescendo
 - Clouds VFX
 
+- Scripts :
+   - VFX Manager - controla a troca de cor dos VFXs utilizando ScriptableObjects com perfils de cores para trocar os VFX de forma artisticamente controlada
+   - Clickable Object - Utiliza o OnMouseDown para atrelar um Unity Event para tocar a Timeline usando a esfera 
 
 - Técnicas de otimização aplicadas:
 
